@@ -1,11 +1,15 @@
-# 1-with_db_connection.py
+import sqlite3 
+import functools
 
 def with_db_connection(func):
-    def wrapper(*args, **kwargs):
-        print("Connecting to the database")
-        result = func(*args, **kwargs)
-        print("Closing the database connection")
-        return result
-    return wrapper
+    """ your code goes here""" 
 
-@with_db_connection
+@with_db_connection 
+def get_user_by_id(conn, user_id): 
+cursor = conn.cursor() 
+cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,)) 
+return cursor.fetchone() 
+#### Fetch user by ID with automatic connection handling 
+
+user = get_user_by_id(user_id=1)
+print(user)
