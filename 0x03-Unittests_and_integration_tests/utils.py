@@ -46,7 +46,7 @@ def get_json(url: str) -> Dict:
     return response.json()
 
 
-def memoize(fn: Callable) -> Callable:
+def memoize(fn: Callable) -> property:
     """Decorator to memoize a method.
     Example
     -------
