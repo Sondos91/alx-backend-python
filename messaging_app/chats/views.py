@@ -7,6 +7,7 @@ from .models import Conversation, Message, user
 from .serializers import ConversationSerializer, MessageSerializer
 from .permissions import IsParticipantofConversation
 from .auth import CustomAuthentication
+from rest_framework.permissions import IsAuthenticated
 # Create your views here.
 
 
@@ -50,12 +51,13 @@ class MessageViewSet(viewsets.ModelViewSet):
     queryset = Message.objects.all()
     serializer_class = MessageSerializer
     filterset_class = MessageFilter
-    permission_classes = [IsParticipantofConversation]
+    permission_classes = [IsAuthenticated, IsParticipantofConversation]
 
     def get_queryset(self):
         user_id = self.request.user.user_id
         conversation_id = self.kwargs.get('conversation_id')
-        return self.queryset.filter(
+        # Explicitly use Message.objects.filter
+        return Message.objects.filter(
             conversation__conversation_id=conversation_id,
             conversation__participants__user_id=user_id)
     
@@ -65,6 +67,9 @@ class MessageViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def mark_read(self, request, pk=None):
         message = self.get_object()
+        # Example permission check using HTTP_403_FORBIDDEN
+        if message.conversation not in self.request.user.conversations.all():
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
         message.is_read = True
         message.save()
         return Response({'status': 'message marked as read'}, status=status.HTTP_200_OK)
