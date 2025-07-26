@@ -51,6 +51,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'chats.middleware.RequestLoggingMiddleware',
 ]
 
 DEFAULT_AUTHENTICATION_CLASSES = [
@@ -66,9 +67,9 @@ REST_FRAMEWORK = {
 
 }   
 
-ROOT_URLCONF = 'messaging_app.urls'
+ROOT_URLCONF = 'Django-Middleware-0x03.urls'
 
-DEFAULT_AUTH_USER_MODEL = 'chats.user'
+DEFAULT_AUTH_USER_MODEL = 'chats.CustomUser'
 
 TEMPLATES = [
     {
@@ -86,7 +87,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'messaging_app.wsgi.application'
+WSGI_APPLICATION = 'Django-Middleware-0x03.wsgi.application'
 
 
 # Database

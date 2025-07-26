@@ -4,7 +4,7 @@ import uuid
 
 # Create your models here.
 
-class user(AbstractUser):
+class CustomUser(AbstractUser):
     user_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     primary_key = True
     username = models.CharField(max_length=150, unique=True)
@@ -24,7 +24,7 @@ class user(AbstractUser):
     
 class Conversation(models.Model):
     conversation_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
-    participants = models.ManyToManyField(user, related_name='conversations')
+    participants = models.ManyToManyField(CustomUser, related_name='conversations')
     created_at = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
@@ -33,7 +33,7 @@ class Conversation(models.Model):
 class Message(models.Model):
     message_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     conversation = models.ForeignKey(Conversation, related_name='messages', on_delete=models.CASCADE)
-    sender = models.ForeignKey(user, related_name='sent_messages', on_delete=models.CASCADE)
+    sender = models.ForeignKey(CustomUser, related_name='sent_messages', on_delete=models.CASCADE)
     message_body = models.TextField()
     sent_at = models.DateTimeField(auto_now_add=True)    
     def __str__(self):
