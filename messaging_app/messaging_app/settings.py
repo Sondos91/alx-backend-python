@@ -55,9 +55,11 @@ MIDDLEWARE = [
 
 DEFAULT_AUTHENTICATION_CLASSES = [
     'rest_framework.permissions.IsAuthenticated',
-    'rest_framework.authentication.SessionAuthentication',
     'rest_framework_authentication.BasicAuthentication',
+    'rest_framework.authentication.SessionAuthentication',
+    'rest_framework_simplejwt.authentication.JWTAuthentication',
 ]
+    
 
 ROOT_URLCONF = 'messaging_app.urls'
 
