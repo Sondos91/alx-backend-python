@@ -5,7 +5,10 @@ from rest_framework.response import Response
 from django_filters import rest_framework as filters
 from .models import Conversation, Message, user
 from .serializers import ConversationSerializer, MessageSerializer
+from .permissions import IsParticipantofConversation
+from .auth import CustomAuthentication
 # Create your views here.
+
 
 
 class ConversationFilter(filters.FilterSet):
@@ -47,10 +50,14 @@ class MessageViewSet(viewsets.ModelViewSet):
     queryset = Message.objects.all()
     serializer_class = MessageSerializer
     filterset_class = MessageFilter
+    permission_classes = [IsParticipantofConversation]
 
     def get_queryset(self):
+        user_id = self.request.user.user_id
         conversation_id = self.kwargs.get('conversation_id')
-        return self.queryset.filter(conversation__conversation_id=conversation_id)
+        return self.queryset.filter(
+            conversation__conversation_id=conversation_id,
+            conversation__participants__user_id=user_id)
     
     def perform_create(self, serializer):
         serializer.save(sender=self.request.user)

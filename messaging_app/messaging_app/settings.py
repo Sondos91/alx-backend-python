@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'chats',
+    'rest_framework_simplejwt',
     # 'drf_nested_routers',
 ]
 
@@ -55,6 +56,7 @@ MIDDLEWARE = [
 DEFAULT_AUTHENTICATION_CLASSES = [
     'rest_framework.permissions.IsAuthenticated',
     'rest_framework.authentication.SessionAuthentication',
+    'rest_framework_authentication.BasicAuthentication',
 ]
 
 ROOT_URLCONF = 'messaging_app.urls'
