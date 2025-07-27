@@ -1,5 +1,6 @@
 from datetime import datetime
 from rest_framework.response import Response
+from django.http import JsonResponse
 
 
 class RequestLoggingMiddleware :
@@ -71,5 +72,62 @@ class OffensiveLanguageMiddleware :
         else:
             ip = request.META.get('REMOTE_ADDR')
         return ip
+
+class RolePermissionMiddleware:
+    """
+    Middleware to check user's role (admin/moderator) before allowing access to specific actions.
+    """
+    
+    def __init__(self, get_response):
+        self.get_response = get_response
+        # Define protected paths that require admin/moderator access
+        self.protected_paths = [
+            '/admin/',
+            '/api/admin/',
+            '/api/moderate/',
+            '/api/users/',
+            '/api/conversations/manage/',
+        ]
+
+    def __call__(self, request):
+        # Check if the current path requires role-based access
+        if self.is_protected_path(request.path):
+            # Check if user is authenticated
+            if not request.user.is_authenticated:
+                return JsonResponse({
+                    "detail": "Authentication required for this action."
+                }, status=401)
+            
+            # Check if user has admin or moderator role
+            if not self.has_admin_or_moderator_role(request.user):
+                return JsonResponse({
+                    "detail": "Access denied. Admin or moderator role required."
+                }, status=403)
+        
+        return self.get_response(request)
+
+    def is_protected_path(self, path):
+        """
+        Check if the current path requires role-based access.
+        """
+        return any(protected_path in path for protected_path in self.protected_paths)
+
+    def has_admin_or_moderator_role(self, user):
+        """
+        Check if the user has admin or moderator role.
+        """
+        # Check if user is a superuser (admin)
+        if user.is_superuser:
+            return True
+        
+        # Check if user is staff
+        if user.is_staff:
+            return True
+        
+        # Check if user belongs to admin or moderator groups
+        admin_groups = ['admin', 'moderator', 'administrator']
+        user_groups = [group.name.lower() for group in user.groups.all()]
+        
+        return any(group in user_groups for group in admin_groups)
 
   
