@@ -54,6 +54,7 @@ MIDDLEWARE = [
     'chats.middleware.RequestLoggingMiddleware',
     'chats.middleware.OffensiveLanguageMiddleware',
     'chats.middleware.RestrictAccessByTimeMiddleware',
+    'chats.middleware.RolePermissionMiddleware',
 ]
 
 DEFAULT_AUTHENTICATION_CLASSES = [
