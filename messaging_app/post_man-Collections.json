@@ -1,0 +1,18 @@
+{
+	"info": {
+		"_postman_id": "815b01cf-3fcc-4471-bff7-5b141b81e285",
+		"name": "post_man-Collections",
+		"schema": "https://schema.getpostman.com/json/collection/v2.0.0/collection.json",
+		"_exporter_id": "40398479"
+	},
+	"item": [
+		{
+			"name": "login",
+			"request": {
+				"method": "GET",
+				"header": []
+			},
+			"response": []
+		}
+	]
+}
