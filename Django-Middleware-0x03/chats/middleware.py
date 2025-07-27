@@ -73,7 +73,7 @@ class OffensiveLanguageMiddleware :
             ip = request.META.get('REMOTE_ADDR')
         return ip
 
-class RolePermissionMiddleware:
+class RolepermissionMiddleware:
     """
     Middleware to check user's role (admin/moderator) before allowing access to specific actions.
     """
