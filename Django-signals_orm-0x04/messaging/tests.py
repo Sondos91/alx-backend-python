@@ -71,7 +71,7 @@ class MessageModelTest(TestCase):
         self.assertEqual(message2.get_short_content(), 'This is a very long message that should be truncat...')
     
     def test_message_ordering(self):
-        """Test that messages are ordered by timestamp (newest first)."""
+        """Test that messages are ordered by timestamp (chronological order)."""
         message1 = Message.objects.create(
             sender=self.user1,
             receiver=self.user2,
@@ -84,8 +84,8 @@ class MessageModelTest(TestCase):
         )
         
         messages = Message.objects.all()
-        self.assertEqual(messages[0], message2)  # Newest first
-        self.assertEqual(messages[1], message1)
+        self.assertEqual(messages[0], message1)  # First message (chronological)
+        self.assertEqual(messages[1], message2)  # Second message (chronological)
     
     def test_mark_as_edited(self):
         """Test marking a message as edited."""

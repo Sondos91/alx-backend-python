@@ -158,8 +158,8 @@ def notification_list(request):
 @login_required
 def unread_messages(request):
     """Display unread messages for the current user using the custom manager."""
-    # Use the custom manager to get unread messages
-    unread_messages = Message.unread.for_user(request.user)
+    # Use the custom manager to get unread messages with optimized query using .only()
+    unread_messages = Message.unread.unread_for_user(request.user)
     
     # Get unread count for display
     unread_count = Message.unread.count_for_user(request.user)
@@ -189,7 +189,8 @@ def mark_message_read(request, message_id):
 def mark_all_messages_read(request):
     """Mark all unread messages for the user as read."""
     if request.method == 'POST':
-        unread_messages = Message.unread.for_user(request.user)
+        # Use the custom manager with optimized query using .only()
+        unread_messages = Message.unread.unread_for_user(request.user)
         count = unread_messages.count()
         unread_messages.update(read=True, is_read=True)
         

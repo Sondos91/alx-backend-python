@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Unread Messages{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>Unread Messages ({{ unread_count }})</h2>
+                <div>
+                    <a href="{% url 'messaging:message_list' %}" class="btn btn-secondary">Back to Conversations</a>
+                    {% if unread_count > 0 %}
+                        <form method="post" action="{% url 'messaging:mark_all_messages_read' %}" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-success">Mark All as Read</button>
+                        </form>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if unread_messages %}
+                <div class="list-group">
+                    {% for message in unread_messages %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <h6 class="mb-1">
+                                        <strong>From:</strong> {{ message.sender.username }}
+                                        {% if message.is_reply %}
+                                            <span class="badge bg-info">Reply</span>
+                                        {% endif %}
+                                    </h6>
+                                    <p class="mb-1">{{ message.content|truncatewords:30 }}</p>
+                                    <small class="text-muted">
+                                        Received: {{ message.timestamp|date:"M d, Y H:i" }}
+                                        {% if message.edited %}
+                                            <span class="text-warning">(edited)</span>
+                                        {% endif %}
+                                    </small>
+                                </div>
+                                <div class="ms-3">
+                                    <button class="btn btn-sm btn-primary mark-read-btn" 
+                                            data-message-id="{{ message.id }}"
+                                            data-url="{% url 'messaging:mark_message_read' message.id %}">
+                                        Mark as Read
+                                    </button>
+                                    <a href="{% url 'messaging:conversation_thread' message.get_thread_root.id %}" 
+                                       class="btn btn-sm btn-outline-primary">
+                                        View Thread
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    <h5>No Unread Messages</h5>
+                    <p>You have no unread messages. All caught up!</p>
+                    <a href="{% url 'messaging:message_list' %}" class="btn btn-primary">View All Conversations</a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle mark as read buttons
+    document.querySelectorAll('.mark-read-btn').forEach(function(button) {
+        button.addEventListener('click', function() {
+            const messageId = this.getAttribute('data-message-id');
+            const url = this.getAttribute('data-url');
+            
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Remove the message from the list
+                    this.closest('.list-group-item').remove();
+                    
+                    // Update the unread count
+                    const countElement = document.querySelector('h2');
+                    const currentCount = parseInt(countElement.textContent.match(/\d+/)[0]);
+                    countElement.textContent = `Unread Messages (${currentCount - 1})`;
+                    
+                    // Hide the "Mark All as Read" button if no more unread messages
+                    if (currentCount - 1 === 0) {
+                        document.querySelector('form').style.display = 'none';
+                        location.reload(); // Reload to show "No Unread Messages" message
+                    }
+                } else {
+                    alert('Error marking message as read: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error marking message as read');
+            });
+        });
+    });
+});
+</script>
+{% endblock %} 

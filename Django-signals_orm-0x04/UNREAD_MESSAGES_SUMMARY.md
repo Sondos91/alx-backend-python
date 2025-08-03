@@ -8,7 +8,7 @@ This document summarizes the implementation of a custom manager to filter unread
 
 ### 1. Custom UnreadMessagesManager
 
-**Location**: `messaging/models.py`
+**Location**: `messaging/managers.py`
 
 The custom manager provides optimized methods for handling unread messages:
 
@@ -155,7 +155,18 @@ class MessageAdmin(admin.ModelAdmin):
         self.message_user(request, f'{updated} message(s) marked as unread.')
 ```
 
-### 6. Comprehensive Testing
+### 6. Template Implementation
+
+**Location**: `messaging/templates/messaging/unread_messages.html`
+
+Created a comprehensive template for displaying unread messages with:
+- List of unread messages with sender information
+- Mark as read functionality via AJAX
+- Mark all as read button
+- Link to view full conversation threads
+- Responsive design with Bootstrap styling
+
+### 7. Comprehensive Testing
 
 **Location**: `messaging/tests.py`
 
@@ -177,7 +188,7 @@ Added extensive test coverage:
 - `test_mark_as_read()`: Tests the new mark_as_read method
 - `test_mark_as_unread()`: Tests the new mark_as_unread method
 
-### 7. Demonstration Script
+### 8. Demonstration Script
 
 **Location**: `demo_unread_messages.py`
 
