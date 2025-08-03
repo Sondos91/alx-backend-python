@@ -154,6 +154,50 @@ def notification_list(request):
 
 
 @login_required
+def unread_messages(request):
+    """Display unread messages for the current user using the custom manager."""
+    # Use the custom manager to get unread messages
+    unread_messages = Message.unread.for_user(request.user)
+    
+    # Get unread count for display
+    unread_count = Message.unread.count_for_user(request.user)
+    
+    context = {
+        'unread_messages': unread_messages,
+        'unread_count': unread_count,
+    }
+    return render(request, 'messaging/unread_messages.html', context)
+
+
+@login_required
+def mark_message_read(request, message_id):
+    """Mark a specific message as read."""
+    try:
+        message = Message.objects.get(
+            id=message_id,
+            receiver=request.user
+        )
+        message.mark_as_read()
+        return JsonResponse({'success': True})
+    except Message.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Message not found'})
+
+
+@login_required
+def mark_all_messages_read(request):
+    """Mark all unread messages for the user as read."""
+    if request.method == 'POST':
+        unread_messages = Message.unread.for_user(request.user)
+        count = unread_messages.count()
+        unread_messages.update(read=True, is_read=True)
+        
+        messages.success(request, f'{count} messages marked as read.')
+        return redirect('messaging:unread_messages')
+    
+    return redirect('messaging:unread_messages')
+
+
+@login_required
 def mark_notification_read(request, notification_id):
     """Mark a notification as read."""
     try:
@@ -187,6 +231,57 @@ def delete_account_confirm(request):
         'total_data_count': sent_messages_count + received_messages_count + notifications_count + message_edits_count,
     }
     return render(request, 'messaging/delete_account_confirm.html', context)
+
+
+@login_required
+def delete_user(request):
+    """Delete the user's account and all associated data."""
+    user = request.user
+    username = user.username
+    
+    try:
+        with transaction.atomic():
+            # Delete all data associated with the user
+            # Messages sent by the user
+            sent_messages_count = Message.objects.filter(sender=user).count()
+            Message.objects.filter(sender=user).delete()
+            
+            # Messages received by the user
+            received_messages_count = Message.objects.filter(receiver=user).count()
+            Message.objects.filter(receiver=user).delete()
+            
+            # Notifications for the user
+            notifications_count = Notification.objects.filter(user=user).count()
+            Notification.objects.filter(user=user).delete()
+            
+            # Message history edits by the user
+            message_edits_count = MessageHistory.objects.filter(edited_by=user).count()
+            MessageHistory.objects.filter(edited_by=user).delete()
+            
+            # Finally, delete the user
+            user.delete()
+            
+            # Log out the user
+            logout(request)
+            
+            messages.success(
+                request, 
+                f'Account "{username}" has been successfully deleted. '
+                f'Removed: {sent_messages_count} sent messages, '
+                f'{received_messages_count} received messages, '
+                f'{notifications_count} notifications, '
+                f'{message_edits_count} message edits.'
+            )
+            
+            return redirect('messaging:account_deleted')
+            
+    except Exception as e:
+        messages.error(
+            request, 
+            f'An error occurred while deleting your account: {str(e)}. '
+            'Please try again or contact support.'
+        )
+        return redirect('messaging:delete_account_confirm')
 
 
 @login_required

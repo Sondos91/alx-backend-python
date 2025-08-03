@@ -42,8 +42,8 @@ class MessageAdmin(admin.ModelAdmin):
     """
     Admin configuration for the Message model.
     """
-    list_display = ('sender', 'receiver', 'get_short_content', 'timestamp', 'is_read', 'edited', 'is_reply', 'parent_message')
-    list_filter = ('is_read', 'edited', 'timestamp', 'sender', 'receiver', 'parent_message')
+    list_display = ('sender', 'receiver', 'get_short_content', 'timestamp', 'is_read', 'read', 'edited', 'is_reply', 'parent_message')
+    list_filter = ('is_read', 'read', 'edited', 'timestamp', 'sender', 'receiver', 'parent_message')
     search_fields = ('sender__username', 'receiver__username', 'content')
     readonly_fields = ('timestamp', 'edited_at')
     date_hierarchy = 'timestamp'
@@ -54,7 +54,7 @@ class MessageAdmin(admin.ModelAdmin):
             'fields': ('sender', 'receiver', 'content', 'timestamp', 'parent_message')
         }),
         ('Status', {
-            'fields': ('is_read', 'edited', 'edited_at')
+            'fields': ('is_read', 'read', 'edited', 'edited_at')
         }),
     )
     
@@ -65,6 +65,8 @@ class MessageAdmin(admin.ModelAdmin):
             content += " (edited)"
         if obj.is_reply:
             content += " (reply)"
+        if not obj.read:
+            content += " [UNREAD]"
         return content
     get_short_content.short_description = 'Content'
     
@@ -78,19 +80,31 @@ class MessageAdmin(admin.ModelAdmin):
         """Optimize queryset with select_related."""
         return super().get_queryset(request).select_related('sender', 'receiver', 'parent_message')
     
-    actions = ['mark_as_read', 'mark_as_unread', 'mark_as_edited']
+    actions = ['mark_as_read', 'mark_as_unread', 'mark_as_edited', 'mark_as_read_new', 'mark_as_unread_new']
     
     def mark_as_read(self, request, queryset):
-        """Admin action to mark messages as read."""
+        """Admin action to mark messages as read (legacy is_read field)."""
         updated = queryset.update(is_read=True)
-        self.message_user(request, f'{updated} message(s) marked as read.')
-    mark_as_read.short_description = "Mark selected messages as read"
+        self.message_user(request, f'{updated} message(s) marked as read (is_read).')
+    mark_as_read.short_description = "Mark selected messages as read (is_read)"
     
     def mark_as_unread(self, request, queryset):
-        """Admin action to mark messages as unread."""
+        """Admin action to mark messages as unread (legacy is_read field)."""
         updated = queryset.update(is_read=False)
+        self.message_user(request, f'{updated} message(s) marked as unread (is_read).')
+    mark_as_unread.short_description = "Mark selected messages as unread (is_read)"
+    
+    def mark_as_read_new(self, request, queryset):
+        """Admin action to mark messages as read (new read field)."""
+        updated = queryset.update(read=True, is_read=True)
+        self.message_user(request, f'{updated} message(s) marked as read.')
+    mark_as_read_new.short_description = "Mark selected messages as read"
+    
+    def mark_as_unread_new(self, request, queryset):
+        """Admin action to mark messages as unread (new read field)."""
+        updated = queryset.update(read=False, is_read=False)
         self.message_user(request, f'{updated} message(s) marked as unread.')
-    mark_as_unread.short_description = "Mark selected messages as unread"
+    mark_as_unread_new.short_description = "Mark selected messages as unread"
     
     def mark_as_edited(self, request, queryset):
         """Admin action to mark messages as edited."""

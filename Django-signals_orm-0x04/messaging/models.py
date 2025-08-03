@@ -4,6 +4,33 @@ from django.utils import timezone
 from django.db.models import Q, Prefetch
 
 
+class UnreadMessagesManager(models.Manager):
+    """
+    Custom manager to filter unread messages for a specific user.
+    """
+    def for_user(self, user):
+        """
+        Get all unread messages for a specific user.
+        Optimized to retrieve only necessary fields.
+        """
+        return self.filter(
+            receiver=user,
+            read=False
+        ).select_related('sender').only(
+            'id', 'sender__id', 'sender__username', 'content', 
+            'timestamp', 'read', 'parent_message'
+        ).order_by('-timestamp')
+    
+    def count_for_user(self, user):
+        """
+        Get the count of unread messages for a specific user.
+        """
+        return self.filter(
+            receiver=user,
+            read=False
+        ).count()
+
+
 class Message(models.Model):
     """
     Message model to store messages between users with threaded conversation support.
@@ -21,6 +48,7 @@ class Message(models.Model):
     content = models.TextField()
     timestamp = models.DateTimeField(default=timezone.now)
     is_read = models.BooleanField(default=False)
+    read = models.BooleanField(default=False)  # New field for unread messages
     edited = models.BooleanField(default=False)
     edited_at = models.DateTimeField(null=True, blank=True)
     
@@ -34,6 +62,10 @@ class Message(models.Model):
         help_text='Parent message this is replying to'
     )
     
+    # Custom managers
+    objects = models.Manager()
+    unread = UnreadMessagesManager()
+    
     class Meta:
         ordering = ['timestamp']  # Changed to chronological order for threads
         verbose_name = 'Message'
@@ -42,6 +74,7 @@ class Message(models.Model):
             models.Index(fields=['sender', 'receiver']),
             models.Index(fields=['parent_message']),
             models.Index(fields=['timestamp']),
+            models.Index(fields=['receiver', 'read']),  # Index for unread queries
         ]
     
     def __str__(self):
@@ -52,6 +85,18 @@ class Message(models.Model):
     def get_short_content(self):
         """Return a shortened version of the message content."""
         return self.content[:50] + "..." if len(self.content) > 50 else self.content
+    
+    def mark_as_read(self):
+        """Mark the message as read."""
+        self.read = True
+        self.is_read = True
+        self.save(update_fields=['read', 'is_read'])
+    
+    def mark_as_unread(self):
+        """Mark the message as unread."""
+        self.read = False
+        self.is_read = False
+        self.save(update_fields=['read', 'is_read'])
     
     def mark_as_edited(self):
         """Mark the message as edited and update the edited_at timestamp."""

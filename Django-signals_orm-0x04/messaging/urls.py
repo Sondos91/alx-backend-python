@@ -10,6 +10,11 @@ urlpatterns = [
     path('notifications/', views.notification_list, name='notification_list'),
     path('mark-notification-read/<int:notification_id>/', views.mark_notification_read, name='mark_notification_read'),
     
+    # Unread messages URLs
+    path('unread/', views.unread_messages, name='unread_messages'),
+    path('mark-message-read/<int:message_id>/', views.mark_message_read, name='mark_message_read'),
+    path('mark-all-read/', views.mark_all_messages_read, name='mark_all_messages_read'),
+    
     # Threaded conversation URLs
     path('thread/<int:thread_id>/', views.conversation_thread, name='conversation_thread'),
     path('reply/<int:message_id>/', views.reply_to_message, name='reply_to_message'),
@@ -17,5 +22,6 @@ urlpatterns = [
     # Account deletion URLs
     path('delete-account/', views.delete_account_confirm, name='delete_account_confirm'),
     path('delete-account/confirm/', views.delete_account, name='delete_account'),
+    path('delete-user/', views.delete_user, name='delete_user'),
     path('account-deleted/', views.account_deleted, name='account_deleted'),
 ]
