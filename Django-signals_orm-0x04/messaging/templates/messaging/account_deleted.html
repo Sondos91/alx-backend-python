@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account Deleted</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin: 10px;
+            background-color: #007bff;
+            color: white;
+        }
+        .btn:hover {
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">✅</div>
+        <h1>Account Successfully Deleted</h1>
+        
+        <div class="success">
+            <strong>Your account has been permanently deleted.</strong>
+        </div>
+        
+        <p>All your data has been removed from our system, including:</p>
+        <ul style="text-align: left; max-width: 400px; margin: 0 auto;">
+            <li>Your user account and profile</li>
+            <li>All messages you sent and received</li>
+            <li>All your notifications</li>
+            <li>All message edits you made</li>
+        </ul>
+        
+        <p style="margin-top: 30px;">
+            Thank you for using our messaging system. If you change your mind, 
+            you can always create a new account.
+        </p>
+        
+        <div style="margin-top: 30px;">
+            <a href="{% url 'messaging:message_list' %}" class="btn">
+                Go to Home
+            </a>
+        </div>
+    </div>
+</body>
+</html> 
