@@ -6,6 +6,7 @@ from django.contrib.auth import logout
 from django.db import transaction
 from django.urls import reverse_lazy
 from django.views.decorators.http import require_POST
+from django.views.decorators.cache import cache_page
 from django.db.models import Q
 from .models import Message, Notification, MessageHistory
 from django.contrib.auth import get_user_model
@@ -26,6 +27,7 @@ def message_list(request):
 
 
 @login_required
+@cache_page(60)  # Cache for 60 seconds
 def conversation_thread(request, thread_id):
     """Display a specific conversation thread with all replies."""
     thread = get_object_or_404(Message, id=thread_id)
