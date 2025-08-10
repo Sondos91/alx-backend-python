@@ -14,6 +14,9 @@ RUN apt-get update \
         gcc \
         g++ \
         libpq-dev \
+        pkg-config \
+        default-libmysqlclient-dev \
+        libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
