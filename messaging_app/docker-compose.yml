@@ -20,7 +20,7 @@ services:
     command: >
       sh -c "python manage.py collectstatic --noinput &&
              python manage.py migrate &&
-             gunicorn --bind 0.0.0.0:8000 messaging_app.wsgi:application"
+             python3 manage.py runserver 0.0.0.0:8000"
     restart: unless-stopped
 
   db:
@@ -29,6 +29,7 @@ services:
     environment:
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
       - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_DB=${MYSQL_DB}
       - MYSQL_USER=${MYSQL_USER}
       - MYSQL_PASSWORD=${MYSQL_PASSWORD}
     ports:
