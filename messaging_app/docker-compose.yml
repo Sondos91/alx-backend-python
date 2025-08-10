@@ -1,0 +1,15 @@
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - /app/static
+    environment:
+      - DEBUG=1
+      - DJANGO_SETTINGS_MODULE=messaging_app.settings
+    command: >
+      sh -c "python manage.py collectstatic --noinput &&
+             gunicorn --bind 0.0.0.0:8000 messaging_app.wsgi:application"
+    restart: unless-stopped

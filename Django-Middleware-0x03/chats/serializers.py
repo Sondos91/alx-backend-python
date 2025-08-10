@@ -1,11 +1,12 @@
-from .models import Conversation, Message, user
+from .models import Conversation, Message
+from .models import CustomUser
 from rest_framework import serializers
 from rest_framework.serializers import CharField, SerializerMethodField
 from rest_framework.exceptions import ValidationError
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
-        model = user
+        model = CustomUser
         fields = ['user_id', 'username', 'email', 'first_name', 'last_name', 'address', 'phone_number']
         read_only_fields = ['user_id']
 
@@ -35,9 +36,9 @@ class ConversationSerializer(serializers.ModelSerializer):
         conversation = Conversation.objects.create(**validated_data)
         for participant in participants_data:
             try:
-                user_instance = user.objects.get(user_id=participant.user_id)
+                user_instance = CustomUser.objects.get(user_id=participant.user_id)
                 conversation.participants.add(user_instance)
-            except user.DoesNotExist:
+            except CustomUser.DoesNotExist:
                 raise serializers.ValidationError(f"User with ID {participant.user_id} does not exist")
         return conversation
         
