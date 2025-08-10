@@ -23,8 +23,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy project
 COPY . .
 
-# Expose port
+# Expose port 8000
 EXPOSE 8000
 
-# Run the application
+# Run the application on port 8000
 CMD ["gunicorn", "--bind", "0.0.0.0:8000", "messaging_app.wsgi:application"]
