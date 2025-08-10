@@ -30,4 +30,4 @@ COPY . .
 EXPOSE 8000
 
 # Run the application on port 8000
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "messaging_app.wsgi:application"]
+CMD ["gunicorn", "-p", "8000", "--bind", "0.0.0.0:8000", "messaging_app.wsgi:application"]
