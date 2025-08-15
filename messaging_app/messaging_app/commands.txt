@@ -1,0 +1,72 @@
+# Kubernetes Ingress Setup Commands
+# Objective: Expose Django app to the internet using Nginx Ingress controller
+
+# 1. Install Nginx Ingress Controller
+# Using Helm (recommended method)
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm repo update
+helm install ingress-nginx ingress-nginx/ingress-nginx --namespace ingress-nginx --create-namespace
+
+# Alternative: Using kubectl apply (if Helm is not available)
+# kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.2/deploy/static/provider/cloud/deploy.yaml
+
+# 2. Wait for Ingress controller to be ready
+kubectl wait --namespace ingress-nginx \
+  --for=condition=ready pod \
+  --selector=app.kubernetes.io/component=controller \
+  --timeout=120s
+
+# 3. Check Ingress controller status
+kubectl get pods -n ingress-nginx
+kubectl get services -n ingress-nginx
+
+# 4. Apply the Ingress configuration
+kubectl apply -f ingress.yaml
+
+# 5. Verify Ingress resource creation
+kubectl get ingress
+kubectl describe ingress messaging-app-ingress
+
+# 6. Check Ingress controller logs
+kubectl logs -n ingress-nginx -l app.kubernetes.io/component=controller
+
+# 7. Test the Ingress (if using minikube)
+# Start minikube tunnel for external access
+minikube tunnel
+
+# 8. Get the external IP (if using LoadBalancer)
+kubectl get service ingress-nginx-controller -n ingress-nginx
+
+# 9. Test endpoints
+# Health check
+curl -H "Host: messaging-app.local" http://localhost/health/
+
+# API endpoint
+curl -H "Host: messaging-app.local" http://localhost/chats/
+
+# Admin endpoint
+curl -H "Host: messaging-app.local" http://localhost/admin/
+
+# 10. Check Ingress status and events
+kubectl describe ingress messaging-app-ingress
+
+# 11. View Ingress controller configuration
+kubectl get configmap -n ingress-nginx nginx-configuration -o yaml
+
+# 12. Scale the Ingress controller if needed
+kubectl scale deployment ingress-nginx-controller -n ingress-nginx --replicas=2
+
+# 13. Check resource usage of Ingress controller
+kubectl top pods -n ingress-nginx
+
+# 14. Troubleshooting commands
+# Check if Ingress controller is receiving traffic
+kubectl logs -n ingress-nginx -l app.kubernetes.io/component=controller --tail=100
+
+# Check if pods are accessible from Ingress controller
+kubectl exec -n ingress-nginx -c nginx $(kubectl get pods -n ingress-nginx -l app.kubernetes.io/component=controller -o jsonpath='{.items[0].metadata.name}') -- curl -s http://messaging-app-service:8000/health/
+
+# 15. Cleanup commands (if needed)
+# kubectl delete -f ingress.yaml
+# helm uninstall ingress-nginx -n ingress-nginx
+# kubectl delete namespace ingress-nginx
