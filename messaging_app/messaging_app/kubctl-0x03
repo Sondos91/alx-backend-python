@@ -1,0 +1,487 @@
+#!/bin/bash
+
+# kubctl-0x03 - Rolling Update Script
+# Objective: Update the application without downtime
+
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+# Configuration
+DEPLOYMENT_NAME="messaging-app-blue"
+SERVICE_NAME="messaging-app-blue-service"
+NAMESPACE="default"
+HEALTH_ENDPOINT="/health/"
+TEST_ENDPOINT="/chats/"
+TEST_DURATION=300  # 5 minutes of continuous testing
+TEST_INTERVAL=2    # Test every 2 seconds
+ROLLOUT_TIMEOUT=600  # 10 minutes timeout for rollout
+CONTINUOUS_REQUESTS=true
+
+# Function to print colored output
+print_status() {
+    echo -e "${BLUE}[INFO]${NC} $1"
+}
+
+print_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
+
+print_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+print_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+print_header() {
+    echo -e "${PURPLE}==========================================${NC}"
+    echo -e "${PURPLE}    $1${NC}"
+    echo -e "${PURPLE}==========================================${NC}"
+    echo ""
+}
+
+print_subheader() {
+    echo -e "${CYAN}--- $1 ---${NC}"
+}
+
+# Function to check if a command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+# Function to check prerequisites
+check_prerequisites() {
+    print_header "Checking Prerequisites"
+    
+    # Check kubectl
+    if ! command_exists kubectl; then
+        print_error "kubectl is not installed!"
+        exit 1
+    fi
+    print_success "kubectl found: $(kubectl version --client --short)"
+    
+    # Check curl
+    if ! command_exists curl; then
+        print_error "curl is not installed!"
+        exit 1
+    fi
+    print_success "curl found: $(curl --version | head -n1)"
+    
+    # Check if cluster is accessible
+    if ! kubectl cluster-info &> /dev/null; then
+        print_error "Cannot connect to Kubernetes cluster!"
+        exit 1
+    fi
+    print_success "Connected to Kubernetes cluster"
+}
+
+# Function to get current deployment status
+get_current_status() {
+    print_header "Current Deployment Status"
+    
+    print_subheader "Deployment Details"
+    kubectl get deployment $DEPLOYMENT_NAME
+    
+    print_subheader "Current Pods"
+    kubectl get pods -l app=messaging-app,version=blue
+    
+    print_subheader "Current Image Version"
+    kubectl get deployment $DEPLOYMENT_NAME -o jsonpath='{.spec.template.spec.containers[0].image}'
+    echo ""
+    
+    print_subheader "Service Status"
+    kubectl get service $SERVICE_NAME 2>/dev/null || print_warning "Service not found"
+}
+
+# Function to get service endpoint
+get_service_endpoint() {
+    print_header "Getting Service Endpoint"
+    
+    # Check if we're using minikube
+    if command_exists minikube && minikube status &> /dev/null; then
+        print_status "Using minikube tunnel for external access..."
+        # Start minikube tunnel in background
+        minikube tunnel &
+        TUNNEL_PID=$!
+        sleep 15
+        
+        # Get the service URL
+        SERVICE_URL=$(minikube service $SERVICE_NAME --url)
+        print_success "Service accessible at: $SERVICE_URL"
+        echo $SERVICE_URL > /tmp/service_url.txt
+        echo $TUNNEL_PID > /tmp/tunnel_pid.txt
+    else
+        # For other clusters, try to get the service IP
+        SERVICE_IP=$(kubectl get service $SERVICE_NAME -o jsonpath='{.spec.clusterIP}')
+        SERVICE_PORT=$(kubectl get service $SERVICE_NAME -o jsonpath='{.spec.ports[0].port}')
+        SERVICE_URL="http://$SERVICE_IP:$SERVICE_PORT"
+        print_success "Service accessible at: $SERVICE_URL"
+        echo $SERVICE_URL > /tmp/service_url.txt
+    fi
+}
+
+# Function to test application availability
+test_application() {
+    local endpoint=$1
+    local description=$2
+    
+    if [ -f /tmp/service_url.txt ]; then
+        local service_url=$(cat /tmp/service_url.txt)
+        local full_url="${service_url}${endpoint}"
+        
+        local response=$(curl -s -w "%{http_code}" -o /tmp/response_body "$full_url" 2>/dev/null || echo "000")
+        local http_code=$(echo $response | tail -c4)
+        
+        if [ "$http_code" = "200" ]; then
+            echo -e "${GREEN}✓${NC} $description: HTTP $http_code"
+            return 0
+        else
+            echo -e "${RED}✗${NC} $description: HTTP $http_code"
+            return 1
+        fi
+    else
+        echo -e "${YELLOW}?${NC} $description: Service URL not available"
+        return 1
+    fi
+}
+
+# Function to perform continuous availability testing
+continuous_testing() {
+    local duration=$1
+    local interval=$2
+    
+    print_header "Continuous Availability Testing"
+    print_status "Testing application availability for ${duration}s (every ${interval}s)"
+    print_status "Testing endpoints: $HEALTH_ENDPOINT, $TEST_ENDPOINT"
+    
+    local start_time=$(date +%s)
+    local end_time=$((start_time + duration))
+    local test_count=0
+    local success_count=0
+    local failure_count=0
+    
+    # Create results file
+    local results_file="/tmp/rolling_update_test_results.txt"
+    echo "Rolling Update Test Results - $(date)" > $results_file
+    echo "==========================================" >> $results_file
+    
+    while [ $(date +%s) -lt $end_time ]; do
+        test_count=$((test_count + 1))
+        local current_time=$(date '+%H:%M:%S')
+        local elapsed=$((($(date +%s) - start_time)))
+        
+        echo -n "[$current_time] Test $test_count (${elapsed}s): "
+        
+        # Test health endpoint
+        if test_application $HEALTH_ENDPOINT "Health Check"; then
+            success_count=$((success_count + 1))
+            echo "Health: OK" >> $results_file
+        else
+            failure_count=$((failure_count + 1))
+            echo "Health: FAILED" >> $results_file
+        fi
+        
+        # Test main endpoint
+        if test_application $TEST_ENDPOINT "Main App"; then
+            success_count=$((success_count + 1))
+            echo "Main App: OK" >> $results_file
+        else
+            failure_count=$((failure_count + 1))
+            echo "Main App: FAILED" >> $results_file
+        fi
+        
+        echo "" >> $results_file
+        
+        # Show progress
+        local progress=$((elapsed * 100 / duration))
+        echo "Progress: ${progress}% (${success_count}✓ ${failure_count}✗)"
+        
+        sleep $interval
+    done
+    
+    # Final results
+    local total_tests=$((test_count * 2))  # 2 endpoints per test
+    local availability=$((success_count * 100 / total_tests))
+    
+    print_subheader "Test Results Summary"
+    echo "Total Tests: $total_tests"
+    echo "Successful: $success_count"
+    echo "Failed: $failure_count"
+    echo "Availability: ${availability}%"
+    echo "Results saved to: $results_file"
+    
+    if [ $availability -ge 99 ]; then
+        print_success "Excellent availability during rolling update!"
+    elif [ $availability -ge 95 ]; then
+        print_success "Good availability during rolling update!"
+    elif [ $availability -ge 90 ]; then
+        print_warning "Acceptable availability during rolling update"
+    else
+        print_error "Poor availability during rolling update!"
+    fi
+    
+    return $([ $availability -ge 95 ] && echo 0 || echo 1)
+}
+
+# Function to apply rolling update
+apply_rolling_update() {
+    print_header "Applying Rolling Update"
+    
+    print_status "Current deployment status before update:"
+    kubectl get deployment $DEPLOYMENT_NAME -o wide
+    
+    print_status "Applying updated deployment configuration..."
+    kubectl apply -f blue_deployment.yaml
+    
+    if [ $? -eq 0 ]; then
+        print_success "Deployment configuration applied successfully!"
+    else
+        print_error "Failed to apply deployment configuration!"
+        exit 1
+    fi
+    
+    # Verify the image was updated
+    local new_image=$(kubectl get deployment $DEPLOYMENT_NAME -o jsonpath='{.spec.template.spec.containers[0].image}')
+    print_status "New image version: $new_image"
+}
+
+# Function to monitor rollout status
+monitor_rollout() {
+    print_header "Monitoring Rollout Status"
+    
+    print_status "Starting rollout status monitoring..."
+    print_status "Timeout: ${ROLLOUT_TIMEOUT}s"
+    
+    # Monitor rollout status
+    if kubectl rollout status deployment/$DEPLOYMENT_NAME --timeout=${ROLLOUT_TIMEOUT}s; then
+        print_success "Rollout completed successfully!"
+        return 0
+    else
+        print_error "Rollout failed or timed out!"
+        return 1
+    fi
+}
+
+# Function to verify rolling update completion
+verify_rollout_completion() {
+    print_header "Verifying Rolling Update Completion"
+    
+    print_subheader "Deployment Status"
+    kubectl get deployment $DEPLOYMENT_NAME -o wide
+    
+    print_subheader "Pod Status"
+    kubectl get pods -l app=messaging-app,version=blue
+    
+    print_subheader "Image Version Verification"
+    local current_image=$(kubectl get deployment $DEPLOYMENT_NAME -o jsonpath='{.spec.template.spec.containers[0].image}')
+    print_status "Current image: $current_image"
+    
+    if [[ "$current_image" == *":2.0" ]]; then
+        print_success "Image successfully updated to version 2.0!"
+    else
+        print_error "Image update verification failed!"
+        return 1
+    fi
+    
+    print_subheader "Pod Details"
+    kubectl describe pods -l app=messaging-app,version=blue
+    
+    print_subheader "Rollout History"
+    kubectl rollout history deployment/$DEPLOYMENT_NAME
+    
+    print_subheader "Resource Usage"
+    if command_exists kubectl-top; then
+        kubectl top pods -l app=messaging-app,version=blue
+    else
+        print_warning "kubectl top not available for resource monitoring"
+    fi
+}
+
+# Function to check for any errors during rollout
+check_rollout_errors() {
+    print_header "Checking for Rollout Errors"
+    
+    local pods=$(kubectl get pods -l app=messaging-app,version=blue -o jsonpath='{.items[*].metadata.name}')
+    local error_found=false
+    
+    for pod in $pods; do
+        print_status "Checking pod: $pod"
+        
+        # Check pod status
+        local pod_status=$(kubectl get pod $pod -o jsonpath='{.status.phase}')
+        if [ "$pod_status" != "Running" ]; then
+            print_error "Pod $pod is not running (status: $pod_status)"
+            error_found=true
+        fi
+        
+        # Check for errors in logs
+        local error_count=$(kubectl logs $pod --tail=100 2>/dev/null | grep -i "error\|exception\|fail\|crash" | wc -l)
+        if [ $error_count -gt 0 ]; then
+            print_warning "Found $error_count potential errors in pod $pod logs"
+            kubectl logs $pod --tail=20 | grep -i "error\|exception\|fail\|crash" || true
+            error_found=true
+        fi
+        
+        # Check for failed containers
+        local failed_containers=$(kubectl get pod $pod -o jsonpath='{.status.containerStatuses[*].state.waiting.reason}' | grep -v "^$" | wc -l)
+        if [ $failed_containers -gt 0 ]; then
+            print_error "Pod $pod has failed containers"
+            error_found=true
+        fi
+    done
+    
+    if [ "$error_found" = true ]; then
+        print_error "Errors detected during rollout!"
+        return 1
+    else
+        print_success "No errors detected during rollout!"
+        return 0
+    fi
+}
+
+# Function to cleanup
+cleanup() {
+    print_header "Cleanup"
+    
+    # Stop minikube tunnel if running
+    if [ -f /tmp/tunnel_pid.txt ]; then
+        local tunnel_pid=$(cat /tmp/tunnel_pid.txt)
+        if kill -0 $tunnel_pid 2>/dev/null; then
+            print_status "Stopping minikube tunnel..."
+            kill $tunnel_pid
+            rm -f /tmp/tunnel_pid.txt
+        fi
+        rm -f /tmp/service_url.txt
+    fi
+    
+    print_success "Cleanup completed!"
+}
+
+# Function to show help
+show_help() {
+    echo "kubctl-0x03 - Rolling Update Script"
+    echo ""
+    echo "Usage: $0 [COMMAND]"
+    echo ""
+    echo "Commands:"
+    echo "  (no args)  Full rolling update with testing"
+    echo "  update      Apply rolling update only"
+    echo "  monitor     Monitor rollout status only"
+    echo "  test        Run availability testing only"
+    echo "  verify      Verify rollout completion only"
+    echo "  status      Show current deployment status"
+    echo "  errors      Check for rollout errors"
+    echo "  cleanup     Cleanup temporary resources"
+    echo "  help        Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  $0           # Run full rolling update"
+    echo "  $0 update    # Apply update only"
+    echo "  $0 test      # Run testing only"
+    echo "  $0 verify    # Verify completion only"
+}
+
+# Main execution
+main() {
+    print_header "Rolling Update Without Downtime"
+    
+    # Check prerequisites
+    check_prerequisites
+    
+    # Get current status
+    get_current_status
+    
+    # Get service endpoint
+    get_service_endpoint
+    
+    # Start continuous testing in background if enabled
+    if [ "$CONTINUOUS_REQUESTS" = true ]; then
+        print_status "Starting continuous availability testing in background..."
+        continuous_testing $TEST_DURATION $TEST_INTERVAL &
+        TEST_PID=$!
+        sleep 5  # Give testing a moment to start
+    fi
+    
+    # Apply rolling update
+    apply_rolling_update
+    
+    # Monitor rollout
+    if ! monitor_rollout; then
+        print_error "Rollout monitoring failed!"
+        if [ "$CONTINUOUS_REQUESTS" = true ]; then
+            kill $TEST_PID 2>/dev/null || true
+        fi
+        exit 1
+    fi
+    
+    # Wait for testing to complete if running
+    if [ "$CONTINUOUS_REQUESTS" = true ] && [ -n "$TEST_PID" ]; then
+        print_status "Waiting for availability testing to complete..."
+        wait $TEST_PID
+    fi
+    
+    # Verify completion
+    verify_rollout_completion
+    
+    # Check for errors
+    check_rollout_errors
+    
+    print_success "Rolling update completed successfully!"
+    print_status "Application updated to version 2.0 without downtime"
+    
+    # Cleanup
+    cleanup
+}
+
+# Handle command line arguments
+case "${1:-}" in
+    "update")
+        check_prerequisites
+        apply_rolling_update
+        ;;
+    "monitor")
+        check_prerequisites
+        monitor_rollout
+        ;;
+    "test")
+        check_prerequisites
+        get_service_endpoint
+        continuous_testing $TEST_DURATION $TEST_INTERVAL
+        cleanup
+        ;;
+    "verify")
+        check_prerequisites
+        verify_rollout_completion
+        ;;
+    "status")
+        check_prerequisites
+        get_current_status
+        ;;
+    "errors")
+        check_prerequisites
+        check_rollout_errors
+        ;;
+    "cleanup")
+        cleanup
+        ;;
+    "help"|"-h"|"--help")
+        show_help
+        ;;
+    "")
+        main
+        ;;
+    *)
+        print_error "Unknown command: $1"
+        show_help
+        exit 1
+        ;;
+esac

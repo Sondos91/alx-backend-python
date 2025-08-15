@@ -1,0 +1,148 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: django-config-green
+  labels:
+    app: messaging-app
+    version: green
+data:
+  DEBUG: "False"
+  DJANGO_SETTINGS_MODULE: "messaging_app.settings"
+  MYSQL_HOST: "mysql-service"
+  MYSQL_PORT: "3306"
+  MYSQL_DATABASE: "messaging_db"
+  MYSQL_USER: "messaging_user"
+  APP_VERSION: "2.0.0"  # New version indicator
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: django-secret-green
+  labels:
+    app: messaging-app
+    version: green
+type: Opaque
+data:
+  SECRET_KEY: "YOUR_SECRET_KEY_BASE64_ENCODED_HERE"  # Replace with actual base64 encoded secret
+  MYSQL_PASSWORD: "YOUR_MYSQL_PASSWORD_BASE64_ENCODED_HERE"  # Replace with actual base64 encoded password
+  MYSQL_ROOT_PASSWORD: "YOUR_ROOT_PASSWORD_BASE64_ENCODED_HERE"  # Replace with actual base64 encoded root password
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: messaging-app-green
+  labels:
+    app: messaging-app
+    version: green
+    environment: production
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: messaging-app
+      version: green
+  template:
+    metadata:
+      labels:
+        app: messaging-app
+        version: green
+        environment: production
+    spec:
+      containers:
+      - name: messaging-app
+        image: messaging-app:latest  # Use your Docker image name
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: DEBUG
+          valueFrom:
+            configMapKeyRef:
+              name: django-config-green
+              key: DEBUG
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: django-secret-green
+              key: SECRET_KEY
+        - name: DJANGO_SETTINGS_MODULE
+          valueFrom:
+            configMapKeyRef:
+              name: django-config-green
+              key: DJANGO_SETTINGS_MODULE
+        - name: MYSQL_DATABASE
+          valueFrom:
+            configMapKeyRef:
+              name: django-config-green
+              key: MYSQL_DATABASE
+        - name: MYSQL_USER
+          valueFrom:
+            configMapKeyRef:
+              name: django-config-green
+              key: MYSQL_USER
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: django-secret-green
+              key: MYSQL_PASSWORD
+        - name: MYSQL_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: django-config-green
+              key: MYSQL_HOST
+        - name: MYSQL_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: django-config-green
+              key: MYSQL_PORT
+        - name: APP_VERSION
+          valueFrom:
+            configMapKeyRef:
+              name: django-config-green
+              key: APP_VERSION
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health/
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health/
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "sleep 10"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: messaging-app-green-service
+  labels:
+    app: messaging-app
+    version: green
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: messaging-app
+    version: green
