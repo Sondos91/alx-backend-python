@@ -1,0 +1,152 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: messaging-app-active
+  labels:
+    app: messaging-app
+    type: active
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: messaging-app
+    version: blue  # Initially points to blue deployment
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: messaging-app-blue
+  labels:
+    app: messaging-app
+    version: blue
+    type: blue
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: messaging-app
+    version: blue
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: messaging-app-green
+  labels:
+    app: messaging-app
+    version: green
+    type: green
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: messaging-app
+    version: green
+---
+# Ingress configuration for blue-green deployment
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: messaging-app-blue-green-ingress
+  labels:
+    app: messaging-app
+    strategy: blue-green
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-Frame-Options: DENY";
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-XSS-Protection: 1; mode=block";
+      more_set_headers "X-App-Version: $upstream_http_x_app_version";
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "4k"
+    nginx.ingress.kubernetes.io/proxy-buffers-number: "8"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: messaging-app.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: messaging-app-active
+            port:
+              number: 8000
+      - path: /api/
+        pathType: Prefix
+        backend:
+          service:
+            name: messaging-app-active
+            port:
+              number: 8000
+      - path: /chats/
+        pathType: Prefix
+        backend:
+          service:
+            name: messaging-app-active
+            port:
+              number: 8000
+      - path: /admin/
+        pathType: Prefix
+        backend:
+          service:
+            name: messaging-app-active
+            port:
+              number: 8000
+      - path: /health/
+        pathType: Exact
+        backend:
+          service:
+            name: messaging-app-active
+            port:
+              number: 8000
+      # Blue version specific endpoints for testing
+      - path: /blue/
+        pathType: Prefix
+        backend:
+          service:
+            name: messaging-app-blue
+            port:
+              number: 8000
+      # Green version specific endpoints for testing
+      - path: /green/
+        pathType: Prefix
+        backend:
+          service:
+            name: messaging-app-green
+            port:
+              number: 8000
+---
+# ConfigMap for blue-green deployment configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: blue-green-config
+  labels:
+    app: messaging-app
+    type: configuration
+data:
+  active_version: "blue"
+  blue_replicas: "2"
+  green_replicas: "2"
+  health_check_path: "/health/"
+  switch_timeout: "300"
+  rollback_threshold: "3"
