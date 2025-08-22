@@ -1,0 +1,104 @@
+pipeline {
+    agent any
+    
+    environment {
+        PYTHON_VERSION = '3.9'
+        VENV_NAME = 'venv'
+        PROJECT_DIR = 'messaging_app'
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                echo 'Checking out source code from GitHub...'
+                checkout scm
+            }
+        }
+        
+        stage('Setup Python Environment') {
+            steps {
+                echo 'Setting up Python virtual environment...'
+                sh '''
+                    python3 -m venv ${VENV_NAME}
+                    source ${VENV_NAME}/bin/activate
+                    python --version
+                    pip install --upgrade pip
+                '''
+            }
+        }
+        
+        stage('Install Dependencies') {
+            steps {
+                echo 'Installing project dependencies...'
+                sh '''
+                    source ${VENV_NAME}/bin/activate
+                    cd ${PROJECT_DIR}
+                    pip install -r requirements.txt
+                    pip install pytest pytest-django pytest-cov pytest-html
+                '''
+            }
+        }
+        
+        stage('Run Tests') {
+            steps {
+                echo 'Running tests with pytest...'
+                sh '''
+                    source ${VENV_NAME}/bin/activate
+                    cd ${PROJECT_DIR}
+                    python manage.py collectstatic --noinput
+                    python manage.py test --verbosity=2
+                    pytest --cov=. --cov-report=html --cov-report=xml --junitxml=test-results.xml --html=test-report.html
+                '''
+            }
+        }
+        
+        stage('Generate Test Report') {
+            steps {
+                echo 'Generating test reports...'
+                publishHTML([
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'messaging_app/htmlcov',
+                    reportFiles: 'index.html',
+                    reportName: 'Coverage Report'
+                ])
+                
+                publishHTML([
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'messaging_app',
+                    reportFiles: 'test-report.html',
+                    reportName: 'Test Report'
+                ])
+                
+                publishTestResults testResultsPattern: '**/test-results.xml'
+            }
+        }
+        
+        stage('Cleanup') {
+            steps {
+                echo 'Cleaning up...'
+                sh '''
+                    rm -rf ${VENV_NAME}
+                    rm -f ${PROJECT_DIR}/test-results.xml
+                    rm -f ${PROJECT_DIR}/test-report.html
+                    rm -rf ${PROJECT_DIR}/htmlcov
+                '''
+            }
+        }
+    }
+    
+    post {
+        always {
+            echo 'Pipeline execution completed.'
+        }
+        success {
+            echo 'Pipeline executed successfully!'
+        }
+        failure {
+            echo 'Pipeline failed!'
+        }
+    }
+}
