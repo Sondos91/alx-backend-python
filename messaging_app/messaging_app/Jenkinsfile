@@ -11,16 +11,9 @@ pipeline {
         stage('Checkout') {
             steps {
                 echo 'Checking out source code from GitHub...'
-                checkout([$class: 'GitSCM', 
-                    branches: [[name: '*/main']], 
-                    doGenerateSubmoduleConfigurations: false, 
-                    extensions: [], 
-                    submoduleCfg: [], 
-                    userRemoteConfigs: [[
-                        credentialsId: 'github-credentials',
-                        url: 'https://github.com/yourusername/messaging_app.git'
-                    ]]
-                ])
+                git branch: 'main', 
+                    credentialsId: 'github-credentials',
+                    url: 'https://github.com/yourusername/messaging_app.git'
             }
         }
         
