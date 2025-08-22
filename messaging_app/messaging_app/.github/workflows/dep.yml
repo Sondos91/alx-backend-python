@@ -1,0 +1,143 @@
+name: Docker Build and Deploy
+
+on:
+  push:
+    branches: [ main, master, develop ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main, master, develop ]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Docker image tag'
+        required: false
+        default: 'latest'
+        type: string
+
+env:
+  REGISTRY: docker.io
+  IMAGE_NAME: yourusername/messaging-app
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+        labels: |
+          org.opencontainers.image.title=Messaging App
+          org.opencontainers.image.description=Django-based messaging application
+          org.opencontainers.image.vendor=Your Company
+          org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        platforms: linux/amd64,linux/arm64
+
+    - name: Generate image digest
+      run: |
+        echo "Image digest: ${{ steps.meta.outputs.tags }}"
+        echo "Built and pushed successfully to Docker Hub!"
+
+  test-deployment:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install docker
+
+    - name: Test Docker image
+      run: |
+        echo "Testing Docker image deployment..."
+        docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        echo "✅ Docker image pulled successfully!"
+        
+        # Test container startup
+        docker run --rm -d --name test-messaging-app -p 8000:8000 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        sleep 10
+        
+        # Check if container is running
+        if docker ps | grep -q test-messaging-app; then
+          echo "✅ Container started successfully!"
+          docker stop test-messaging-app
+          docker rm test-messaging-app
+        else
+          echo "❌ Container failed to start"
+          exit 1
+        fi
+
+  security-scan:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+    - name: Security scan summary
+      run: |
+        echo "=== Security Scan Summary ==="
+        echo "Vulnerability scan completed for: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+        echo "Results uploaded to GitHub Security tab"
+        echo "✅ Security scan completed successfully!"

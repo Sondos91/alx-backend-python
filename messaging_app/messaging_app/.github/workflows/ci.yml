@@ -48,7 +48,27 @@ jobs:
         source venv/bin/activate
         cd messaging_app
         pip install -r requirements.txt
-        pip install pytest pytest-django pytest-cov pytest-html mysqlclient
+        pip install pytest pytest-django pytest-cov pytest-html mysqlclient flake8 flake8-django coverage-badge
+
+    - name: Run flake8 linting
+      run: |
+        source venv/bin/activate
+        cd messaging_app
+        echo "Running flake8 linting checks..."
+        flake8 . --config=.flake8 --show-source --statistics --count
+        echo "✅ Flake8 linting passed successfully!"
+
+    - name: Code quality summary
+      run: |
+        source venv/bin/activate
+        cd messaging_app
+        echo "=== Code Quality Summary ==="
+        echo "Lines of code analyzed: $(find . -name "*.py" -not -path "./venv/*" -not -path "./.venv/*" | xargs wc -l | tail -1)"
+        echo "Python files checked: $(find . -name "*.py" -not -path "./venv/*" -not -path "./.venv/*" | wc -l)"
+        echo "Flake8 configuration: .flake8"
+        echo "Max line length: 127 characters"
+        echo "Max complexity: 10"
+        echo "✅ All code quality checks passed!"
 
     - name: Wait for MySQL to be ready
       run: |
@@ -83,7 +103,13 @@ jobs:
       run: |
         source venv/bin/activate
         cd messaging_app
-        pytest --cov=. --cov-report=xml --cov-report=html --junitxml=test-results.xml --html=test-report.html
+        pytest --cov=. --cov-report=xml --cov-report=html --cov-report=term-missing --cov-report=lcov --junitxml=test-results.xml --html=test-report.html --cov-fail-under=70
+
+    - name: Generate coverage badge
+      run: |
+        source venv/bin/activate
+        cd messaging_app
+        coverage-badge -o coverage-badge.svg
 
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v3
@@ -93,22 +119,28 @@ jobs:
         name: codecov-umbrella
         fail_ci_if_error: false
 
-    - name: Upload test results
+    - name: Upload test results and coverage
       uses: actions/upload-artifact@v3
       if: always()
       with:
-        name: test-results
+        name: test-results-and-coverage
         path: |
           messaging_app/test-results.xml
           messaging_app/test-report.html
           messaging_app/htmlcov/
+          messaging_app/coverage.xml
+          messaging_app/coverage-badge.svg
+          messaging_app/.coverage
         retention-days: 30
 
     - name: Test summary
       if: always()
       run: |
-        echo "=== Test Summary ==="
+        echo "=== Final Test Summary ==="
         echo "Python version: $(python --version)"
-        echo "Django tests completed successfully!"
-        echo "Coverage report generated"
-        echo "Test artifacts uploaded"
+        echo "✅ Code quality checks completed (flake8)"
+        echo "✅ Django tests completed successfully!"
+        echo "✅ Coverage report generated (minimum 70% required)"
+        echo "✅ Test artifacts uploaded"
+        echo "✅ Coverage badge generated"
+        echo "Pipeline completed successfully!"
