@@ -5,6 +5,8 @@ pipeline {
         PYTHON_VERSION = '3.9'
         VENV_NAME = 'venv'
         PROJECT_DIR = 'messaging_app'
+        DOCKER_IMAGE_NAME = 'yourusername/messaging-app'
+        DOCKER_TAG = 'latest'
     }
     
     stages {
@@ -79,6 +81,27 @@ pipeline {
             }
         }
         
+        stage('Build Docker Image') {
+            steps {
+                echo 'Building Docker image...'
+                script {
+                    docker.build("${DOCKER_IMAGE_NAME}:${DOCKER_TAG}")
+                }
+            }
+        }
+        
+        stage('Push Docker Image') {
+            steps {
+                echo 'Pushing Docker image to Docker Hub...'
+                script {
+                    docker.withRegistry('https://registry.hub.docker.com', 'dockerhub-credentials') {
+                        docker.image("${DOCKER_IMAGE_NAME}:${DOCKER_TAG}").push()
+                        docker.image("${DOCKER_IMAGE_NAME}:${DOCKER_TAG}").push("${env.BUILD_NUMBER}")
+                    }
+                }
+            }
+        }
+        
         stage('Cleanup') {
             steps {
                 echo 'Cleaning up...'
@@ -88,6 +111,10 @@ pipeline {
                     rm -f ${PROJECT_DIR}/test-report.html
                     rm -rf ${PROJECT_DIR}/htmlcov
                 '''
+                script {
+                    sh "docker rmi ${DOCKER_IMAGE_NAME}:${DOCKER_TAG} || true"
+                    sh "docker rmi ${DOCKER_IMAGE_NAME}:${env.BUILD_NUMBER} || true"
+                }
             }
         }
     }
